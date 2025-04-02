@@ -1,13 +1,17 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import sys
-import os
+from fastapi import FastAPI
+from mangum import Mangum
 
-# Add the root directory to the path so we can import the auth_service module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Create a minimal FastAPI app
+app = FastAPI()
 
-# Import your FastAPI app
-from auth_service.main import app
+@app.get("/")
+async def root():
+    return {"message": "API is working!"}
 
-# Export the app directly for Vercel
+@app.get("/api/hello")
+async def hello():
+    return {"message": "Hello from FastAPI on Vercel!"}
+
+# Create handler for Vercel
+handler = Mangum(app)
 
