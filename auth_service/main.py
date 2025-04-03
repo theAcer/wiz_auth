@@ -23,7 +23,7 @@ app.add_middleware(
     allow_origins=settings.CORS_ORIGINS + [
         "https://*.onrender.com",
         # Add your frontend domain here
-        "https://your-frontend-domain.com",
+        "https://elecmate-exchange.lovable.app",
         # During development
         "http://localhost:3000",
         "http://localhost:5173"
