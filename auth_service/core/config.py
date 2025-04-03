@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Wiz Platform Authentication Service"
+    PROJECT_NAME: str = "Wiz Auth Service"
     
     # CORS
     CORS_ORIGINS: List[Union[str, AnyHttpUrl]] = ["*"]
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str
     
     # JWT
-    JWT_SECRET_KEY: str = "supersecretkey"  # Change in production
+    JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        # Allow environment variables to override .env file
+        env_file_encoding = 'utf-8'
 
+# Initialize settings
 settings = Settings()
 

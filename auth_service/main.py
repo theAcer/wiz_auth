@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 from auth_service.core.config import settings
 from auth_service.api.api_v1.api import api_router
 from auth_service.core.exceptions import add_exception_handlers
@@ -13,10 +14,20 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configure CORS - Update to include Vercel deployment URLs
+# Get the PORT from environment variable (Render sets this)
+port = os.environ.get("PORT", 8000)
+
+# Configure CORS - Add Render domains and your frontend domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS + ["https://*.vercel.app", "https://*.now.sh"],
+    allow_origins=settings.CORS_ORIGINS + [
+        "https://*.onrender.com",
+        # Add your frontend domain here
+        "https://your-frontend-domain.com",
+        # During development
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,24 +47,13 @@ async def root():
         "version": "1.0.0"
     }
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Render"""
+    return {"status": "healthy"}
+
 # This is only used when running locally
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("auth_service.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("auth_service.main:app", host="0.0.0.0", port=int(port), reload=True)
 
-# This is only used when running in Vercel
-# async def handler(request: Request):
-#     """
-#     Handle requests in the Vercel serverless environment
-#     """
-#     # Get the path and method from the request
-#     path = request.url.path
-#     if path.endswith("/"):
-#         path = path[:-1]
-#
-#     # Process the request through your FastAPI app
-#     return await fastapi_app(scope={"type": "http", "path": path, "method": request.method}, receive=request.receive)
-#
-# # Export the handler for Vercel
-# app = fastapi_app
-#   
