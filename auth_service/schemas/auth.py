@@ -1,5 +1,21 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Dict, Any
+from datetime import datetime
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = 3600
+    refresh_token: Optional[str] = None
+    user: Optional[Dict[str, Any]] = None
+
+class TokenPayload(BaseModel):
+    sub: Optional[str] = None
+    exp: Optional[int] = None
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 class UserSignUp(BaseModel):
     email: EmailStr
@@ -7,29 +23,11 @@ class UserSignUp(BaseModel):
     first_name: str
     last_name: str
     phone_number: Optional[str] = None
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenPayload(BaseModel):
-    sub: Optional[str] = None
-    exp: Optional[int] = None
+    marketing_consent: Optional[bool] = False
 
 class MagicLinkRequest(BaseModel):
     email: EmailStr
     redirect_to: Optional[str] = None
-
-class PhoneLoginRequest(BaseModel):
-    phone: str
-
-class PhoneVerifyRequest(BaseModel):
-    phone: str
-    token: str
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr
@@ -39,5 +37,6 @@ class PasswordResetConfirm(BaseModel):
     password: str
 
 class GoogleAuthRequest(BaseModel):
-    id_token: str
+    code: str
+    redirect_uri: Optional[str] = None
 

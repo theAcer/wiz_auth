@@ -1,9 +1,17 @@
 from typing import Optional, Dict, Any
 import httpx
 from auth_service.core.config import settings
-from auth_service.schemas.auth import UserSignUp
+from auth_service.schemas.auth import (
+    UserLogin, UserSignUp, MagicLinkRequest, 
+    PasswordResetRequest, PasswordResetConfirm,
+    GoogleAuthRequest
+)
 from auth_service.core.exceptions import AuthException
 from fastapi import status
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class AuthService:
     def __init__(self):
@@ -115,6 +123,51 @@ class AuthService:
         }
         
         await self._supabase_request("recover", "PUT", data)
+
+    async def google_auth(self, request: GoogleAuthRequest) -> Dict[str, Any]:
+        """Handle Google OAuth authentication"""
+        try:
+            logger.info("Processing Google authentication")
+            
+            # For Supabase, we need to exchange the authorization code for tokens
+            # This is done through the Supabase OAuth API
+            data = {
+                "grant_type": "authorization_code",
+                "code": request.code,
+                "provider": "google"
+            }
+            
+            # Add redirect_uri if provided
+            if request.redirect_uri:
+                data["redirect_uri"] = request.redirect_uri
+            
+            # Exchange code for tokens
+            result = await self._supabase_request("auth/v1/token", "POST", data)
+            
+            logger.info("Google authentication successful")
+            return result
+        except Exception as e:
+            logger.error(f"Error in google_auth: {str(e)}")
+            raise
+    
+    async def get_google_auth_url(self, redirect_uri: str) -> Dict[str, Any]:
+        """Get Google OAuth URL for client-side redirect"""
+        try:
+            # This is a helper method to generate the Google OAuth URL
+            # In practice, this is usually handled by the frontend directly
+            # But we provide it here for convenience
+            
+            # Get the Google OAuth URL from Supabase
+            data = {
+                "provider": "google",
+                "redirect_to": redirect_uri
+            }
+            
+            result = await self._supabase_request("auth/v1/authorize", "GET", data)
+            return {"url": result.get("url")}
+        except Exception as e:
+            logger.error(f"Error in get_google_auth_url: {str(e)}")
+            raise
     
     async def logout(self, user_id: str) -> None:
         """Logout user"""
