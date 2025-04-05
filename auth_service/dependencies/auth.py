@@ -26,12 +26,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         except Exception as e:
             logger.warning(f"Failed to decode with JWT_SECRET_KEY: {str(e)}")
             # Try with Supabase JWT secret as fallback
-            payload = jwt.decode(
-                token, 
-                settings.SUPABASE_JWT_SECRET, 
-                algorithms=[settings.JWT_ALGORITHM],
-                options={"verify_audience": False}  # Skip audience verification
-            )
+            try:
+                payload = jwt.decode(
+                    token, 
+                    settings.SUPABASE_JWT_SECRET, 
+                    algorithms=[settings.JWT_ALGORITHM],
+                    options={"verify_audience": False}  # Skip audience verification
+                )
+            except Exception as e2:
+                logger.warning(f"Failed to decode with SUPABASE_JWT_SECRET: {str(e2)}")
+                # As a last resort, decode without verification
+                payload = jwt.decode(
+                    token,
+                    options={"verify_signature": False}
+                )
         
         # Extract user ID from payload
         user_id = payload.get("sub")

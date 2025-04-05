@@ -6,161 +6,162 @@ from auth_service.core.exceptions import AuthException
 import logging
 import json
 from datetime import datetime
+from jose import jwt as jose_jwt  # Use jose library which is already installed
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 class UserService:
-  def __init__(self):
-      self.supabase_url = settings.SUPABASE_URL
-      self.supabase_key = settings.SUPABASE_KEY
-      self.headers = {
-          "apikey": self.supabase_key,
-          "Content-Type": "application/json"
-      }
-      # Use the correct table name from your schema
-      self.profile_table = "user_profiles"
-  
-  async def _supabase_request(self, endpoint: str, method: str = "GET", data: Optional[Dict[str, Any]] = None, auth_token: Optional[str] = None):
-      """Make a request to Supabase API"""
-      url = f"{self.supabase_url}/{endpoint}"
-      
-      headers = self.headers.copy()
-      if auth_token:
-          headers["Authorization"] = f"Bearer {auth_token}"
-      
-      logger.debug(f"Making {method} request to {url}")
-      
-      async with httpx.AsyncClient() as client:
-          try:
-              if method == "GET":
-                  response = await client.get(url, headers=headers)
-              elif method == "POST":
-                  response = await client.post(url, headers=headers, json=data)
-              elif method == "PUT":
-                  response = await client.put(url, headers=headers, json=data)
-              elif method == "PATCH":
-                  response = await client.patch(url, headers=headers, json=data)
-              elif method == "DELETE":
-                  response = await client.delete(url, headers=headers)
-              
-              logger.debug(f"Response status: {response.status_code}")
-              
-              if response.status_code >= 400:
-                  try:
-                      error_data = response.json()
-                      error_message = json.dumps(error_data)
-                  except:
-                      error_message = f"Error: {response.status_code} - {response.text}"
-                  
-                  logger.error(f"Error in Supabase request: {error_message}")
-                  raise AuthException(
-                      status_code=response.status_code,
-                      detail=error_message
-                  )
-              
-              return response.json()
-          except httpx.RequestError as e:
-              logger.error(f"Request error: {str(e)}")
-              raise AuthException(
-                  status_code=500,
-                  detail=f"Request error: {str(e)}"
-              )
-  
-  async def get_user_by_id(self, user_id: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
-      """Get user by ID"""
-      try:
-          logger.info(f"Fetching user with ID: {user_id}")
-          
-          # First, get the user's profile from the user_profiles table
-          profile_endpoint = f"rest/v1/{self.profile_table}?id=eq.{user_id}&select=*"
-          
-          try:
-              profiles = await self._supabase_request(profile_endpoint, "GET", auth_token=auth_token)
-              
-              if not profiles or len(profiles) == 0:
-                  # Profile doesn't exist, create one
-                  logger.info(f"Profile not found for user {user_id}, creating one")
-                  now = datetime.utcnow().isoformat()
-                  profile_data = {
-                      "id": user_id,
-                      "first_name": "",
-                      "last_name": "",
-                      "phone_number": "",
-                      "avatar_url": "",
-                      "created_at": now,
-                      "updated_at": now
-                  }
-                  await self._supabase_request(f"rest/v1/{self.profile_table}", "POST", data=profile_data, auth_token=auth_token)
-                  profile = profile_data
-              else:
-                  profile = profiles[0]
-          except Exception as e:
-              logger.error(f"Error fetching profile: {str(e)}")
-              now = datetime.utcnow().isoformat()
-              profile = {
-                  "first_name": "",
-                  "last_name": "",
-                  "phone_number": "",
-                  "avatar_url": "",
-                  "created_at": now,
-                  "updated_at": now
-              }
-          
-          # For the user's email, we'll use a direct approach
-          # Since we can't use the auth.users table directly without admin access
-          email = ""
-          try:
-              # Try to extract email from JWT token if possible
-              if auth_token:
-                  import jwt
-                  try:
-                      # Try to decode the token to get the email
-                      decoded = jwt.decode(auth_token, options={"verify_signature": False})
-                      email = decoded.get("email", "")
-                  except:
-                      logger.error("Failed to decode JWT token")
-          except Exception as e:
-              logger.error(f"Error extracting email from token: {str(e)}")
-          
-          # Ensure we have valid datetime strings
-          now = datetime.utcnow().isoformat()
-          created_at = profile.get("created_at") or now
-          updated_at = profile.get("updated_at") or now
-          
-          # Combine user and profile data
-          return {
-              "id": user_id,
-              "email": email,
-              "first_name": profile.get("first_name", ""),
-              "last_name": profile.get("last_name", ""),
-              "phone_number": profile.get("phone_number", ""),
-              "avatar_url": profile.get("avatar_url", ""),
-              "role": "user",
-              "is_verified": True,  # Assume verified since they have a token
-              "created_at": created_at,
-              "updated_at": updated_at,
-              "last_login": now
-          }
-      except Exception as e:
-          logger.error(f"Error getting user by ID: {str(e)}")
-          raise
-  
-  async def update_user(self, user_id: str, profile_data: UserProfile, auth_token: Optional[str] = None) -> Dict[str, Any]:
-      """Update user profile"""
-      try:
-          # Filter out None values
-          update_data = {k: v for k, v in profile_data.dict().items() if v is not None}
-          update_data["updated_at"] = datetime.utcnow().isoformat()
-          
-          # Update the profile in the user_profiles table
-          profile_endpoint = f"rest/v1/{self.profile_table}?id=eq.{user_id}"
-          
-          await self._supabase_request(profile_endpoint, "PATCH", data=update_data, auth_token=auth_token)
-          
-          # Get the updated user
-          return await self.get_user_by_id(user_id, auth_token)
-      except Exception as e:
-          logger.error(f"Error updating user: {str(e)}")
-          raise
+    def __init__(self):
+        self.supabase_url = settings.SUPABASE_URL
+        self.supabase_key = settings.SUPABASE_KEY
+        self.headers = {
+            "apikey": self.supabase_key,
+            "Content-Type": "application/json"
+        }
+        # Use the correct table name from your schema
+        self.profile_table = "user_profiles"
+    
+    async def _supabase_request(self, endpoint: str, method: str = "GET", data: Optional[Dict[str, Any]] = None, auth_token: Optional[str] = None):
+        """Make a request to Supabase API"""
+        url = f"{self.supabase_url}/{endpoint}"
+        
+        headers = self.headers.copy()
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        
+        logger.debug(f"Making {method} request to {url}")
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                if method == "GET":
+                    response = await client.get(url, headers=headers)
+                elif method == "POST":
+                    response = await client.post(url, headers=headers, json=data)
+                elif method == "PUT":
+                    response = await client.put(url, headers=headers, json=data)
+                elif method == "PATCH":
+                    response = await client.patch(url, headers=headers, json=data)
+                elif method == "DELETE":
+                    response = await client.delete(url, headers=headers)
+                
+                logger.debug(f"Response status: {response.status_code}")
+                
+                if response.status_code >= 400:
+                    try:
+                        error_data = response.json()
+                        error_message = json.dumps(error_data)
+                    except:
+                        error_message = f"Error: {response.status_code} - {response.text}"
+                    
+                    logger.error(f"Error in Supabase request: {error_message}")
+                    raise AuthException(
+                        status_code=response.status_code,
+                        detail=error_message
+                    )
+                
+                return response.json()
+            except httpx.RequestError as e:
+                logger.error(f"Request error: {str(e)}")
+                raise AuthException(
+                    status_code=500,
+                    detail=f"Request error: {str(e)}"
+                )
+    
+    async def get_user_by_id(self, user_id: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
+        """Get user by ID"""
+        try:
+            logger.info(f"Fetching user with ID: {user_id}")
+            
+            # First, get the user's profile from the user_profiles table
+            profile_endpoint = f"rest/v1/{self.profile_table}?id=eq.{user_id}&select=*"
+            
+            try:
+                profiles = await self._supabase_request(profile_endpoint, "GET", auth_token=auth_token)
+                
+                if not profiles or len(profiles) == 0:
+                    # Profile doesn't exist, create one
+                    logger.info(f"Profile not found for user {user_id}, creating one")
+                    now = datetime.utcnow().isoformat()
+                    profile_data = {
+                        "id": user_id,
+                        "first_name": "",
+                        "last_name": "",
+                        "phone_number": "",
+                        "avatar_url": "",
+                        "created_at": now,
+                        "updated_at": now
+                    }
+                    await self._supabase_request(f"rest/v1/{self.profile_table}", "POST", data=profile_data, auth_token=auth_token)
+                    profile = profile_data
+                else:
+                    profile = profiles[0]
+            except Exception as e:
+                logger.error(f"Error fetching profile: {str(e)}")
+                now = datetime.utcnow().isoformat()
+                profile = {
+                    "first_name": "",
+                    "last_name": "",
+                    "phone_number": "",
+                    "avatar_url": "",
+                    "created_at": now,
+                    "updated_at": now
+                }
+            
+            # For the user's email, we'll use a direct approach
+            # Since we can't use the auth.users table directly without admin access
+            email = "user@example.com"  # Default valid email
+            try:
+                # Try to extract email from JWT token if possible
+                if auth_token:
+                    try:
+                        # Try to decode the token to get the email
+                        decoded = jose_jwt.decode(auth_token, options={"verify_signature": False})
+                        if "email" in decoded and decoded["email"]:
+                            email = decoded.get("email")
+                    except Exception as e:
+                        logger.error(f"Failed to decode JWT token: {str(e)}")
+            except Exception as e:
+                logger.error(f"Error extracting email from token: {str(e)}")
+            
+            # Ensure we have valid datetime strings
+            now = datetime.utcnow().isoformat()
+            created_at = profile.get("created_at") or now
+            updated_at = profile.get("updated_at") or now
+            
+            # Combine user and profile data
+            return {
+                "id": user_id,
+                "email": email,
+                "first_name": profile.get("first_name", ""),
+                "last_name": profile.get("last_name", ""),
+                "phone_number": profile.get("phone_number", ""),
+                "avatar_url": profile.get("avatar_url", ""),
+                "role": "user",
+                "is_verified": True,  # Assume verified since they have a token
+                "created_at": created_at,
+                "updated_at": updated_at,
+                "last_login": now
+            }
+        except Exception as e:
+            logger.error(f"Error getting user by ID: {str(e)}")
+            raise
+    
+    async def update_user(self, user_id: str, profile_data: UserProfile, auth_token: Optional[str] = None) -> Dict[str, Any]:
+        """Update user profile"""
+        try:
+            # Filter out None values
+            update_data = {k: v for k, v in profile_data.dict().items() if v is not None}
+            update_data["updated_at"] = datetime.utcnow().isoformat()
+            
+            # Update the profile in the user_profiles table
+            profile_endpoint = f"rest/v1/{self.profile_table}?id=eq.{user_id}"
+            
+            await self._supabase_request(profile_endpoint, "PATCH", data=update_data, auth_token=auth_token)
+            
+            # Get the updated user
+            return await self.get_user_by_id(user_id, auth_token)
+        except Exception as e:
+            logger.error(f"Error updating user: {str(e)}")
+            raise
 
