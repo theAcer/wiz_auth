@@ -25,7 +25,7 @@ app.add_middleware(
         # Add your frontend domain here
         "https://elecmate-exchange.lovable.app",
         # During development
-        "http://localhost:3000",
+        "http://localhost:8080",
         "http://localhost:5173"
     ],
     allow_credentials=True,
