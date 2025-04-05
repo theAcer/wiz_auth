@@ -68,6 +68,56 @@ class UserService:
                     detail=f"Request error: {str(e)}"
                 )
     
+    def _extract_email_from_token(self, token: str) -> str:
+        """Extract email from JWT token"""
+        try:
+            # Decode the token without verification
+            decoded = jose_jwt.decode(token, options={"verify_signature": False})
+            
+            # Log the token structure for debugging
+            logger.debug(f"JWT token payload: {json.dumps(decoded)}")
+            
+            # Check various possible locations for the email
+            # 1. Direct email claim
+            if "email" in decoded and decoded["email"]:
+                return decoded["email"]
+            
+            # 2. Check in user metadata
+            if "user_metadata" in decoded and isinstance(decoded["user_metadata"], dict):
+                user_metadata = decoded["user_metadata"]
+                if "email" in user_metadata and user_metadata["email"]:
+                    return user_metadata["email"]
+            
+            # 3. Check in app metadata
+            if "app_metadata" in decoded and isinstance(decoded["app_metadata"], dict):
+                app_metadata = decoded["app_metadata"]
+                if "email" in app_metadata and app_metadata["email"]:
+                    return app_metadata["email"]
+            
+            # 4. Check for Supabase specific claims
+            if "user" in decoded and isinstance(decoded["user"], dict):
+                user = decoded["user"]
+                if "email" in user and user["email"]:
+                    return user["email"]
+            
+            # 5. Try to get email from auth endpoint
+            return ""
+        except Exception as e:
+            logger.error(f"Error extracting email from token: {str(e)}")
+            return ""
+    
+    async def _get_user_email_from_auth(self, auth_token: str) -> str:
+        """Get user email from Supabase auth endpoint"""
+        try:
+            # Try to get user data from Supabase auth endpoint
+            user_data = await self._supabase_request("auth/v1/user", "GET", auth_token=auth_token)
+            if user_data and "email" in user_data:
+                return user_data["email"]
+            return ""
+        except Exception as e:
+            logger.error(f"Error getting user email from auth: {str(e)}")
+            return ""
+    
     async def get_user_by_id(self, user_id: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
         """Get user by ID"""
         try:
@@ -108,21 +158,23 @@ class UserService:
                     "updated_at": now
                 }
             
-            # For the user's email, we'll use a direct approach
-            # Since we can't use the auth.users table directly without admin access
+            # For the user's email, try multiple methods
             email = "user@example.com"  # Default valid email
-            try:
-                # Try to extract email from JWT token if possible
-                if auth_token:
-                    try:
-                        # Try to decode the token to get the email
-                        decoded = jose_jwt.decode(auth_token, options={"verify_signature": False})
-                        if "email" in decoded and decoded["email"]:
-                            email = decoded.get("email")
-                    except Exception as e:
-                        logger.error(f"Failed to decode JWT token: {str(e)}")
-            except Exception as e:
-                logger.error(f"Error extracting email from token: {str(e)}")
+            
+            if auth_token:
+                # Method 1: Extract from token
+                token_email = self._extract_email_from_token(auth_token)
+                if token_email:
+                    email = token_email
+                    logger.info(f"Extracted email from token: {email}")
+                else:
+                    # Method 2: Get from auth endpoint
+                    auth_email = await self._get_user_email_from_auth(auth_token)
+                    if auth_email:
+                        email = auth_email
+                        logger.info(f"Got email from auth endpoint: {email}")
+                    else:
+                        logger.warning("Could not extract email from token or auth endpoint")
             
             # Ensure we have valid datetime strings
             now = datetime.utcnow().isoformat()

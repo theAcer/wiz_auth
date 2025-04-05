@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Any
+from typing import Any, Dict
 import logging
+from jose import jwt as jose_jwt
 
 from auth_service.core.exceptions import AuthException
 from auth_service.schemas.user import UserProfile, UserResponse
@@ -36,8 +37,8 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)) -> An
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_profile(
-  profile: UserProfile, 
-  current_user: dict = Depends(get_current_user)
+    profile: UserProfile, 
+    current_user: dict = Depends(get_current_user)
 ) -> Any:
     """
     Update user profile.
@@ -57,5 +58,21 @@ async def update_user_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating user profile: {str(e)}"
+        )
+
+@router.get("/token-debug")
+async def debug_token(current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
+    """
+    Debug endpoint to see the token payload.
+    """
+    try:
+        token = current_user["token"]
+        decoded = jose_jwt.decode(token, options={"verify_signature": False})
+        return {"token_payload": decoded}
+    except Exception as e:
+        logger.error(f"Error decoding token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error decoding token: {str(e)}"
         )
 
