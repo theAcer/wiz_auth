@@ -14,12 +14,28 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     """Get current user from token"""
     try:
         logger.debug("Verifying JWT token")
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
         
-        if token_data.sub is None:
+        # First try with the configured secret key
+        try:
+            payload = jwt.decode(
+                token, 
+                settings.JWT_SECRET_KEY, 
+                algorithms=[settings.JWT_ALGORITHM],
+                options={"verify_audience": False}  # Skip audience verification
+            )
+        except Exception as e:
+            logger.warning(f"Failed to decode with JWT_SECRET_KEY: {str(e)}")
+            # Try with Supabase JWT secret as fallback
+            payload = jwt.decode(
+                token, 
+                settings.SUPABASE_JWT_SECRET, 
+                algorithms=[settings.JWT_ALGORITHM],
+                options={"verify_audience": False}  # Skip audience verification
+            )
+        
+        # Extract user ID from payload
+        user_id = payload.get("sub")
+        if not user_id:
             logger.warning("Token missing subject claim")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -27,8 +43,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        logger.debug(f"Token verified for user ID: {token_data.sub}")
-        return {"id": token_data.sub, "token": token}
+        logger.debug(f"Token verified for user ID: {user_id}")
+        return {"id": user_id, "token": token}
     except JWTError as e:
         logger.error(f"JWT verification error: {str(e)}")
         raise HTTPException(
