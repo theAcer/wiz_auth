@@ -19,7 +19,7 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)) -> An
     """
     try:
         logger.info(f"Getting profile for user ID: {current_user['id']}")
-        user = await user_service.get_user_by_id(current_user["id"])
+        user = await user_service.get_user_by_id(current_user["id"], current_user["token"])
         return user
     except AuthException as e:
         logger.error(f"Auth exception in get_user_profile: {e.detail}")
@@ -44,7 +44,7 @@ async def update_user_profile(
     """
     try:
         logger.info(f"Updating profile for user ID: {current_user['id']}")
-        updated_user = await user_service.update_user(current_user["id"], profile)
+        updated_user = await user_service.update_user(current_user["id"], profile, current_user["token"])
         return updated_user
     except AuthException as e:
         logger.error(f"Auth exception in update_user_profile: {e.detail}")
