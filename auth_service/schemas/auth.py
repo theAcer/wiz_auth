@@ -44,3 +44,9 @@ class GoogleAuthRequest(BaseModel):
     code: str
     redirect_uri: Optional[str] = None
 
+class PhoneLoginRequest(BaseModel):
+    phone: str
+
+class PhoneVerifyRequest(BaseModel):
+    phone: str
+    token: str
