@@ -2,6 +2,10 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, Dict, Any
 from datetime import datetime
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
