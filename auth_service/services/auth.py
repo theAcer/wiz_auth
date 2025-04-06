@@ -158,38 +158,16 @@ class AuthService:
         try:
             logger.info(f"Getting Google auth URL with redirect: {redirect_uri}")
             
-            # Construct the Google OAuth URL using Supabase's OAuth endpoint
-            params = {
-                "provider": "google",
-                "redirect_to": redirect_uri
-            }
+            # For Supabase, we need to construct the OAuth URL manually
+            # since the /auth/v1/authorize endpoint might not be working as expected
             
-            # Make a request to Supabase's OAuth URL endpoint
-            url = f"{self.supabase_url}/auth/v1/authorize"
+            # The URL format is typically:
+            # https://<your-project>.supabase.co/auth/v1/authorize?provider=google&redirect_to=<redirect_uri>
+            oauth_url = f"{self.supabase_url}/auth/v1/authorize?provider=google&redirect_to={redirect_uri}"
             
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    url, 
-                    headers=self.headers,
-                    params=params
-                )
-                
-                if response.status_code >= 400:
-                    error_message = f"Error: {response.status_code}"
-                    try:
-                        error_data = response.json()
-                        error_message = str(error_data)
-                    except:
-                        error_message = f"Error: {response.status_code} - {response.text}"
-                    
-                    logger.error(f"Error getting Google auth URL: {error_message}")
-                    raise AuthException(
-                        status_code=response.status_code,
-                        detail=error_message
-                    )
-                
-                result = response.json()
-                return {"url": result.get("url")}
+            logger.info(f"Generated OAuth URL: {oauth_url}")
+            
+            return {"url": oauth_url}
         except Exception as e:
             logger.error(f"Error in get_google_auth_url: {str(e)}")
             raise
