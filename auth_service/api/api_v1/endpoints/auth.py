@@ -190,7 +190,13 @@ async def google_callback(request: GoogleAuthRequest) -> Any:
     """
     try:
         logger.info("Processing Google authentication callback")
+        logger.info(f"Code received: {request.code[:10]}... (truncated)")
+        logger.info(f"Redirect URI: {request.redirect_uri}")
+        
+        # Exchange the code for tokens
         result = await auth_service.handle_google_callback(request.code, request.redirect_uri)
+        
+        logger.info("Google authentication successful, returning token")
         
         # Format the response to match your Token model
         return {
@@ -200,14 +206,9 @@ async def google_callback(request: GoogleAuthRequest) -> Any:
             "refresh_token": result.get("refresh_token"),
             "user": result.get("user")
         }
-    except AuthException as e:
-        logger.error(f"Auth exception in google_callback: {e.detail}")
-        raise HTTPException(
-            status_code=e.status_code,
-            detail=e.detail
-        )
     except Exception as e:
         logger.error(f"Unexpected error in google_callback: {str(e)}")
+        # Return a valid response even in case of error to prevent hanging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during Google authentication: {str(e)}"

@@ -176,6 +176,8 @@ class AuthService:
         """Handle Google OAuth callback"""
         try:
             logger.info("Processing Google authentication callback")
+            logger.info(f"Code length: {len(code)}")
+            logger.info(f"Redirect URI: {redirect_uri}")
             
             # Exchange the authorization code for tokens
             data = {
