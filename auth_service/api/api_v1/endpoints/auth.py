@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
 from datetime import timedelta
@@ -8,10 +8,14 @@ from auth_service.core.security import create_access_token
 from auth_service.core.exceptions import AuthException
 from auth_service.schemas.auth import (
     Token, UserSignUp, MagicLinkRequest, PhoneLoginRequest, 
-    PhoneVerifyRequest, PasswordResetRequest, PasswordResetConfirm
+    PhoneVerifyRequest, PasswordResetRequest, PasswordResetConfirm,
+    GoogleAuthRequest, GoogleAuthUrlRequest
 )
 from auth_service.services.auth import AuthService
 from auth_service.dependencies.auth import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 auth_service = AuthService()
@@ -155,5 +159,57 @@ async def logout(current_user: dict = Depends(get_current_user)) -> Any:
         raise AuthException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+    
+@router.get("/google/url", response_model=dict)
+async def get_google_auth_url(redirect_uri: str = Query(...)) -> Any:
+    """
+    Get Google OAuth URL for client-side redirect.
+    """
+    try:
+        logger.info(f"Getting Google auth URL with redirect: {redirect_uri}")
+        result = await auth_service.get_google_auth_url(redirect_uri)
+        return result
+    except AuthException as e:
+        logger.error(f"Auth exception in get_google_auth_url: {e.detail}")
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.detail
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in get_google_auth_url: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting Google auth URL: {str(e)}"
+        )
+
+@router.post("/google/callback", response_model=Token)
+async def google_callback(request: GoogleAuthRequest) -> Any:
+    """
+    Handle Google OAuth callback.
+    """
+    try:
+        logger.info("Processing Google authentication callback")
+        result = await auth_service.handle_google_callback(request.code, request.redirect_uri)
+        
+        # Format the response to match your Token model
+        return {
+            "access_token": result.get("access_token", ""),
+            "token_type": result.get("token_type", "bearer"),
+            "expires_in": result.get("expires_in"),
+            "refresh_token": result.get("refresh_token"),
+            "user": result.get("user")
+        }
+    except AuthException as e:
+        logger.error(f"Auth exception in google_callback: {e.detail}")
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.detail
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in google_callback: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error during Google authentication: {str(e)}"
         )
 

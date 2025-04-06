@@ -4,7 +4,10 @@ from datetime import datetime
 
 class Token(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
+    expires_in: Optional[int] = None
+    refresh_token: Optional[str] = None
+    user: Optional[Dict[str, Any]] = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -40,13 +43,16 @@ class PasswordResetConfirm(BaseModel):
     token: str
     password: str
 
-class GoogleAuthRequest(BaseModel):
-    code: str
-    redirect_uri: Optional[str] = None
-
 class PhoneLoginRequest(BaseModel):
     phone: str
 
 class PhoneVerifyRequest(BaseModel):
     phone: str
     token: str
+
+class GoogleAuthRequest(BaseModel):
+    code: str
+    redirect_uri: Optional[str] = None
+
+class GoogleAuthUrlRequest(BaseModel):
+    redirect_uri: str
