@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
 from datetime import timedelta
@@ -215,36 +215,90 @@ async def google_callback(request: GoogleAuthRequest) -> Any:
             detail=f"Error during Google authentication: {str(e)}"
         )
     
-@router.get("/token-debug")
-async def debug_token(authorization: str = Header(None)):
+@router.get("/debug-token")
+async def debug_token(request: Request):
     """Debug endpoint to analyze token structure"""
-    if not authorization:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return {"error": "No Authorization header provided"}
+    
+    try:
+        # Log the raw header
+        logger.info(f"Raw Authorization header: {auth_header}")
+        
+        # Extract token
+        if " " in auth_header:
+            token_type, token = auth_header.split(" ", 1)
+        else:
+            token_type = "Unknown"
+            token = auth_header
+        
+        logger.info(f"Token type: {token_type}, Token (first 20 chars): {token[:20]}...")
+        
+        # Try to decode header without verification
+        try:
+            header = jwt.get_unverified_header(token)
+            logger.info(f"Token header: {header}")
+        except Exception as e:
+            logger.error(f"Failed to decode token header: {str(e)}")
+            header = {"error": str(e)}
+        
+        # Try to decode payload without verification
+        try:
+            # The jose library requires a key even when not verifying
+            payload = jwt.decode(
+                token,
+                key="dummy_key_for_unverified_jwt",
+                options={"verify_signature": False}
+            )
+            logger.info(f"Token payload keys: {list(payload.keys())}")
+        except Exception as e:
+            logger.error(f"Failed to decode token payload: {str(e)}")
+            payload = {"error": str(e)}
+        
+        # Return token info
+        return {
+            "raw_header": auth_header,
+            "token_type": token_type,
+            "token_preview": token[:20] + "...",
+            "header": header,
+            "payload_keys": list(payload.keys()) if isinstance(payload, dict) and "error" not in payload else [],
+            "issuer": payload.get("iss") if isinstance(payload, dict) else None,
+            "subject": payload.get("sub") if isinstance(payload, dict) else None,
+            "audience": payload.get("aud") if isinstance(payload, dict) else None,
+            "expiration": payload.get("exp") if isinstance(payload, dict) else None,
+            "issued_at": payload.get("iat") if isinstance(payload, dict) else None,
+        }
+    except Exception as e:
+        logger.error(f"Error in debug-token endpoint: {str(e)}")
+        return {"error": f"Failed to analyze token: {str(e)}"}
+    
+
+@router.get("/direct-token-test")
+async def direct_token_test(request: Request):
+    """Test endpoint that manually extracts the token"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
         return {"error": "No Authorization header provided"}
     
     try:
         # Extract token
-        if authorization.startswith("Bearer "):
-            token = authorization.split(" ")[1]
+        if " " in auth_header:
+            token_type, token = auth_header.split(" ", 1)
         else:
-            token = authorization
+            token = auth_header
         
-        # Decode without verification
+        # Try to decode without verification
         payload = jwt.decode(
             token,
             key="dummy_key_for_unverified_jwt",
             options={"verify_signature": False}
         )
         
-        # Return token info
         return {
-            "token_format": authorization[:20] + "...",
-            "decoded": True,
-            "payload_keys": list(payload.keys()),
-            "issuer": payload.get("iss"),
-            "subject": payload.get("sub"),
-            "audience": payload.get("aud"),
-            "algorithm": jwt.get_unverified_header(token).get("alg")
+            "success": True,
+            "user_id": payload.get("sub"),
+            "email": payload.get("email")
         }
     except Exception as e:
-        return {"error": f"Failed to decode token: {str(e)}"}
-
+        return {"error": f"Failed to process token: {str(e)}"}
