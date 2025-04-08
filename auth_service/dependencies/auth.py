@@ -38,6 +38,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                 # As a last resort, decode without verification
                 payload = jwt.decode(
                     token,
+                    key="dummy_key_for_unverified_jwt",
                     options={"verify_signature": False}
                 )
         
