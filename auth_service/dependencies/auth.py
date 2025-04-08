@@ -15,6 +15,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         logger.debug("Verifying JWT token")
         
+        # Extract token if it's in "Bearer <token>" format
+        if token.startswith("Bearer "):
+            token = token.split(" ")[1]
+        
         # First try with the configured secret key
         try:
             payload = jwt.decode(
@@ -41,8 +45,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                     key="dummy_key_for_unverified_jwt",
                     options={"verify_signature": False}
                 )
+                logger.warning("Token decoded without verification - security risk!")
         
-        # Extract user ID from payload
+        # Log the payload structure for debugging
+        logger.debug(f"Token payload structure: {list(payload.keys())}")
+        
+        # Extract user ID from payload - Supabase uses 'sub' for user ID
         user_id = payload.get("sub")
         if not user_id:
             logger.warning("Token missing subject claim")
@@ -67,4 +75,3 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Authentication error: {str(e)}",
         )
-

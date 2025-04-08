@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
 from datetime import timedelta
@@ -14,6 +14,7 @@ from auth_service.schemas.auth import (
 from auth_service.services.auth import AuthService
 from auth_service.dependencies.auth import get_current_user
 import logging
+import jwt
 
 logger = logging.getLogger(__name__)
 
@@ -213,4 +214,37 @@ async def google_callback(request: GoogleAuthRequest) -> Any:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during Google authentication: {str(e)}"
         )
+    
+@router.get("/token-debug")
+async def debug_token(authorization: str = Header(None)):
+    """Debug endpoint to analyze token structure"""
+    if not authorization:
+        return {"error": "No Authorization header provided"}
+    
+    try:
+        # Extract token
+        if authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+        else:
+            token = authorization
+        
+        # Decode without verification
+        payload = jwt.decode(
+            token,
+            key="dummy_key_for_unverified_jwt",
+            options={"verify_signature": False}
+        )
+        
+        # Return token info
+        return {
+            "token_format": authorization[:20] + "...",
+            "decoded": True,
+            "payload_keys": list(payload.keys()),
+            "issuer": payload.get("iss"),
+            "subject": payload.get("sub"),
+            "audience": payload.get("aud"),
+            "algorithm": jwt.get_unverified_header(token).get("alg")
+        }
+    except Exception as e:
+        return {"error": f"Failed to decode token: {str(e)}"}
 
